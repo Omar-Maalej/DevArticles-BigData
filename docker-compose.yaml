@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  dev_articles:
+    build: .
+    container_name: dev-articles-app
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/dev_articles_db
+    volumes:
+      - .:/app
+    command: python3 analyse_articles.py  
+    links:
+      - mongo
+
+volumes:
+  mongo-data:
