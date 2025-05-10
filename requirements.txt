@@ -3,3 +3,5 @@ requests
 pyspark
 python-dotenv
 numpy
+pandas
+streamlit

@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, explode, split, when, array
 from utils.db import collection
+import pandas as pd
 
 def main():
     spark = SparkSession.builder \
@@ -60,9 +61,15 @@ def main():
     # Collect the results and print
     tag_counts = tag_counts_df.collect()
 
+    # Convert Spark rows to pandas DataFrame
+    df_out = pd.DataFrame([(row['tag'], row['count']) for row in tag_counts], columns=["Tag", "Count"])
+    df_out.to_csv("tag_counts.csv", index=False)
+
     print("Tag popularity analysis:")
-    for row in tag_counts:
+    #print first 100 tags
+    for row in tag_counts[:100]:
         print(f"Tag: {row['tag']} | Count: {row['count']}")
+
 
     spark.stop()
 

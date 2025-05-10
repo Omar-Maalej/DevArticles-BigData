@@ -2,8 +2,8 @@ from utils.fetcher import fetch_articles
 from utils.db import upsert_article
 import time
 
-TOTAL_ARTICLES = 1000
-ARTICLES_PER_PAGE = 30
+TOTAL_ARTICLES = 5000
+ARTICLES_PER_PAGE = 300
 
 def main():
     articles_fetched = 0
