@@ -5,3 +5,8 @@ python-dotenv
 numpy
 pandas
 streamlit
+fastapi
+uvicorn
+confluent-kafka
+python-multipart
+kafka-python
