@@ -18,3 +18,11 @@ def upsert_article(article):
         {"$set": article},
         upsert=True
     )
+
+def get_latest_tag_analysis():
+    """Get the latest tag popularity analysis from the analytics collection"""
+    analytics_collection = db["article_analytics"]
+    return analytics_collection.find_one(
+        {"analysis_type": "tag_popularity"},
+        sort=[("analysis_date", -1)]
+    )

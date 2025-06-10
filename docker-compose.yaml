@@ -53,21 +53,6 @@ services:
     networks:
       - kafka_network
 
-  dev_articles:
-    build: .
-    container_name: dev-articles-app
-    depends_on:
-      - mongo
-      - kafka
-    environment:
-      - MONGO_URI=mongodb://mongo:27017/dev_articles_db
-      - KAFKA_BROKER=kafka:9092
-    volumes:
-      - .:/app
-    command: python3 analyse_articles.py
-    networks:
-      - kafka_network
-
   stream_processor:
     build:
       context: .
