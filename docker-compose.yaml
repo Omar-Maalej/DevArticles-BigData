@@ -74,3 +74,6 @@ volumes:
 networks:
   kafka_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/16

@@ -1,30 +1,34 @@
-# Single stage is fine for local development
-FROM eclipse-temurin:11-jdk
+# Use a lean and stable Java 11 image based on Debian
+FROM openjdk:11-jdk-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install essentials (keep it lean)
+# Install Maven and wget
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     maven \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and setup Spark
+# Download and setup Apache Spark
 RUN wget -q https://archive.apache.org/dist/spark/spark-3.3.1/spark-3.3.1-bin-hadoop3.tgz && \
-    tar -xvzf spark-3.3.1-bin-hadoop3.tgz && \
+    tar -xzf spark-3.3.1-bin-hadoop3.tgz && \
     rm spark-3.3.1-bin-hadoop3.tgz && \
     mv spark-3.3.1-bin-hadoop3 /opt/spark
 
+# Set environment variables
 ENV SPARK_HOME=/opt/spark
 ENV PATH=$PATH:$SPARK_HOME/bin
 ENV KAFKA_BROKER=kafka:9092
 
-# Copy only what's needed (pom.xml first for better caching)
+# Copy Maven config first for caching
 COPY ./spark-streaming/pom.xml .
+
+# Copy source code
 COPY ./spark-streaming/src ./src
 
-# Build and run command
+# Default command: build + run with Spark
 CMD mvn clean package && \
     spark-submit --class org.example.KafkaStreamProcessor \
     --master local[*] \

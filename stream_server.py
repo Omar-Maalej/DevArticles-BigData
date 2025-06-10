@@ -13,167 +13,115 @@ app = FastAPI()
 # Mount static files (for JS libraries)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Kafka consumer setup
-consumer = KafkaConsumer(
+# Kafka consumers
+tag_consumer = KafkaConsumer(
     'tag_counts',
     bootstrap_servers=['localhost:9093'],
     auto_offset_reset='latest',
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
-# Global variables for storing tag data
+lang_consumer = KafkaConsumer(
+    'language_distribution',
+    bootstrap_servers=['localhost:9093'],
+    auto_offset_reset='latest',
+    value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+)
+
+# Global state
 tag_data = defaultdict(int)
-last_update_time = 0
+language_data = defaultdict(int)
 update_interval = 2  # seconds
-
-# HTML template with visualization
-html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Real-time Tag Counts</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="/static/websocket.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { display: flex; }
-        .chart-container { width: 70%; }
-        .sidebar { width: 30%; padding-left: 20px; }
-        .card { background: #f5f5f5; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
-        h1 { color: #333; }
-        #update-time { color: #666; font-size: 0.9em; }
-    </style>
-</head>
-<body>
-    <h1>Real-time Tag Counts Visualization</h1>
-    <p id="update-time">Last updated: Not yet received data</p>
-    
-    <div class="container">
-        <div class="chart-container">
-            <canvas id="tagChart"></canvas>
-        </div>
-        <div class="sidebar">
-            <div class="card">
-                <h3>Top Tags</h3>
-                <div id="topTags"></div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Initialize chart
-        const ctx = document.getElementById('tagChart').getContext('2d');
-        const tagChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Tag Counts',
-                    data: [],
-                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    title: {
-                        display: true,
-                        text: 'Tag Frequency Counts',
-                        font: {
-                            size: 16
-                        }
-                    }
-                }
-            }
-        });
-
-        // WebSocket connection
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
-        
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            document.getElementById('update-time').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-            
-            // Update chart
-            tagChart.data.labels = data.labels;
-            tagChart.data.datasets[0].data = data.values;
-            tagChart.update();
-            
-            // Update top tags list
-            const topTagsDiv = document.getElementById('topTags');
-            topTagsDiv.innerHTML = '';
-            data.top_tags.forEach(tag => {
-                const tagElement = document.createElement('p');
-                tagElement.innerHTML = `<strong>${tag.tag}</strong>: ${tag.count}`;
-                topTagsDiv.appendChild(tagElement);
-            });
-            
-            // Update stats
-            document.getElementById('totalTags').textContent = data.total_tags;
-            document.getElementById('totalOccurrences').textContent = data.total_occurrences;
-        };
-    </script>
-</body>
-</html>
-"""
 
 @app.get("/")
 async def get():
-    return HTMLResponse(html)
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Real-time Analytics</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body { font-family: Arial; margin: 20px; }
+            .container { display: flex; gap: 40px; flex-wrap: wrap; }
+            .chart-box { width: 45%; }
+        </style>
+    </head>
+    <body>
+        <h1>Real-time Tag and Language Analytics</h1>
+        <div class="container">
+            <div class="chart-box">
+                <h2>Tag Counts</h2>
+                <canvas id="tagChart"></canvas>
+            </div>
+            <div class="chart-box">
+                <h2>Language Distribution</h2>
+                <canvas id="langChart"></canvas>
+            </div>
+        </div>
 
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+        <script>
+            const tagChart = new Chart(document.getElementById('tagChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Tags', data: [] }] },
+                options: { scales: { y: { beginAtZero: true } }, responsive: true }
+            });
+
+            const langChart = new Chart(document.getElementById('langChart'), {
+                type: 'pie',
+                data: { labels: [], datasets: [{ label: 'Languages', data: [] }] },
+                options: { responsive: true }
+            });
+
+            const ws = new WebSocket(`ws://${window.location.host}/ws/data`);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                tagChart.data.labels = data.tags.labels;
+                tagChart.data.datasets[0].data = data.tags.values;
+                tagChart.update();
+
+                langChart.data.labels = data.languages.labels;
+                langChart.data.datasets[0].data = data.languages.values;
+                langChart.update();
+            };
+        </script>
+    </body>
+    </html>
+    """)
+
+@app.websocket("/ws/data")
+async def data_websocket(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            # Send current tag data to client
-            labels = list(tag_data.keys())
-            values = list(tag_data.values())
-            
-            # Prepare top tags (sorted by count)
-            sorted_tags = sorted(tag_data.items(), key=lambda x: x[1], reverse=True)[:10]
-            top_tags = [{"tag": tag, "count": count} for tag, count in sorted_tags]
-            
-            data = {
-                "labels": labels,
-                "values": values,
-                "top_tags": top_tags,
-                "total_tags": len(tag_data),
-                "total_occurrences": sum(tag_data.values()),
+            tags_sorted = sorted(tag_data.items(), key=lambda x: x[1], reverse=True)[:10]
+            tag_labels = [t[0] for t in tags_sorted]
+            tag_values = [t[1] for t in tags_sorted]
+
+            lang_sorted = sorted(language_data.items(), key=lambda x: x[1], reverse=True)
+            lang_labels = [l[0] for l in lang_sorted]
+            lang_values = [l[1] for l in lang_sorted]
+
+            await websocket.send_json({
+                "tags": {"labels": tag_labels, "values": tag_values},
+                "languages": {"labels": lang_labels, "values": lang_values},
                 "timestamp": time.time()
-            }
-            
-            await websocket.send_json(data)
-            await asyncio.sleep(update_interval)  # Update every 2 seconds
-            
+            })
+            await asyncio.sleep(update_interval)
     except WebSocketDisconnect:
-        print("Client disconnected")
+        print("WebSocket disconnected")
 
-# Kafka consumer thread
-def consume_kafka_messages():
-    global tag_data, last_update_time
-    for message in consumer:
-        tag = message.value['tag']
-        count = message.value['count']
-        tag_data[tag] = count
-        last_update_time = time.time()
+# Consumer threads
+def consume_tags():
+    for msg in tag_consumer:
+        tag_data[msg.value['tag']] = msg.value['count']
 
-# Start Kafka consumer in a separate thread
-def start_kafka_consumer():
-    threading.Thread(target=consume_kafka_messages, daemon=True).start()
+def consume_languages():
+    for msg in lang_consumer:
+        language_data[msg.value['language']] = msg.value['count']
 
-# Start the consumer when the app starts up
 @app.on_event("startup")
-async def startup_event():
-    start_kafka_consumer()
+async def start_consumers():
+    threading.Thread(target=consume_tags, daemon=True).start()
+    threading.Thread(target=consume_languages, daemon=True).start()
