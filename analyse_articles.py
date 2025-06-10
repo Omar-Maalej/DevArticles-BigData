@@ -2,6 +2,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, explode, split, when, array
 from utils.db import collection
 import pandas as pd
+from datetime import datetime
 
 def main():
     spark = SparkSession.builder \
@@ -61,9 +62,23 @@ def main():
     # Collect the results and print
     tag_counts = tag_counts_df.collect()
 
-    # Convert Spark rows to pandas DataFrame
-    df_out = pd.DataFrame([(row['tag'], row['count']) for row in tag_counts], columns=["Tag", "Count"])
-    df_out.to_csv("tag_counts.csv", index=False)
+     # Prepare data for MongoDB insertion
+    tag_data = {
+        "analysis_date": datetime.utcnow(),
+        "tag_counts": [{"tag": row['tag'], "count": row['count']} for row in tag_counts],
+        "total_tags": len(tag_counts),
+        "analysis_type": "tag_popularity"
+    }
+
+    # Insert into MongoDB (using a separate collection for analytics)
+    analytics_collection = collection.database["article_analytics"]
+    
+    # Insert or update the analysis
+    analytics_collection.update_one(
+        {"analysis_type": "tag_popularity"},
+        {"$set": tag_data},
+        upsert=True
+    )
 
     print("Tag popularity analysis:")
     #print first 100 tags

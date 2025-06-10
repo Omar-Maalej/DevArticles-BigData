@@ -95,12 +95,14 @@ public class KafkaStreamProcessor {
             
             // Create Kafka producer
             try (KafkaProducer<String, String> producer = new KafkaProducer<>(producerProps)) {
-                // Send each tag count to Kafka
-                for (Map.Entry<String, Integer> entry : tagCountMap.entrySet()) {
-                    String message = String.format("{\"tag\":\"%s\",\"count\":%d}", 
-                            entry.getKey(), entry.getValue());
-                    producer.send(new ProducerRecord<>("tag_counts", entry.getKey(), message));
-                }
+                  tagCountMap.entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .limit(10)
+                    .forEach(entry -> {
+                        String message = String.format("{\"tag\":\"%s\",\"count\":%d}", 
+                                entry.getKey(), entry.getValue());
+                        producer.send(new ProducerRecord<>("tag_counts", entry.getKey(), message));
+                    });
                 
                 // Print summary
                 System.out.println("\n=== Batch Summary ===");

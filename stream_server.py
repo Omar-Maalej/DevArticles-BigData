@@ -57,13 +57,6 @@ html = """
                 <h3>Top Tags</h3>
                 <div id="topTags"></div>
             </div>
-            <div class="card">
-                <h3>Statistics</h3>
-                <div id="stats">
-                    <p>Total tags tracked: <span id="totalTags">0</span></p>
-                    <p>Total occurrences: <span id="totalOccurrences">0</span></p>
-                </div>
-            </div>
         </div>
     </div>
 

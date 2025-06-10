@@ -2,11 +2,13 @@ from kafka import KafkaProducer
 import json
 from utils.fetcher import fetch_articles
 import time
+from utils.db import upsert_article
+
 
 TOTAL_ARTICLES = 5000
 ARTICLES_PER_PAGE = 300
 KAFKA_TOPIC = "articles"
-KAFKA_BROKER = "localhost:9093"  # Use "localhost:9093" if running outside Docker
+KAFKA_BROKER = "localhost:9093"  
 
 def main():
     producer = KafkaProducer(
@@ -27,6 +29,7 @@ def main():
         
         for article in articles:
             # Send to Kafka
+            upsert_article(article)
             producer.send(KAFKA_TOPIC, value=article)
             articles_fetched += 1
             if articles_fetched >= TOTAL_ARTICLES:
