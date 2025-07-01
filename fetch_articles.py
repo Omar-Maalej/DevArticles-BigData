@@ -28,9 +28,12 @@ def main():
             break
         
         for article in articles:
-            # Send to Kafka
+            # Send to MongoDB
             upsert_article(article)
+            # Send to Kafka
             producer.send(KAFKA_TOPIC, value=article)
+            # Send to HDFS 
+
             articles_fetched += 1
             if articles_fetched >= TOTAL_ARTICLES:
                 break

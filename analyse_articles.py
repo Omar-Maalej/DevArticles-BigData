@@ -12,7 +12,7 @@ def main():
 
     print("Starting Spark session...")
 
-    # Fetching articles with ID and tag list
+    # Fetching articles with ID and tag list from hdfs 
     articles = list(collection.find({}, {"id": 1, "tags": 1, "published_at": 1, "_id": 0}))
 
     print(f"Size of articles to process : {len(articles)}")
